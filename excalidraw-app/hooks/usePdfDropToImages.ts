@@ -2,9 +2,18 @@
 import { useEffect } from "react";
 import JSZip from "jszip";
 
-export function usePdfDropToImages() {
+type API = {
+  addFiles?: (files: Map<string, any>) => Promise<void> | void;
+  getSceneElements: () => any[];
+  getAppState: () => any;
+  updateScene: (arg: any) => void;
+  generateId?: () => string;
+};
+
+export function usePdfDropToImages(excalidrawAPI: API | null) {
   useEffect(() => {
-    // ★ capture phase で document に付ける：既存ハンドラより先に奪う
+    if (!excalidrawAPI) return;
+
     const onDragOver = (e: DragEvent) => {
       if (e.dataTransfer?.types?.includes("application/pdf")) {
         e.preventDefault();
@@ -20,62 +29,125 @@ export function usePdfDropToImages() {
       const pdfFile = items
         .map((it) => (it.kind === "file" ? it.getAsFile() : null))
         .find((f) => f && f.type === "application/pdf");
+      if (!pdfFile) return;
 
-      if (!pdfFile) return; // 画像等は既存処理に任せる
-
-      // ★ ここで完全に横取り（既存PDF処理を走らせない）
+      // 標準PDF処理を完全に止める
       ev.preventDefault();
       ev.stopPropagation();
       (ev as any).stopImmediatePropagation?.();
 
-      // --- 変換フェーズ（例外時のみアラート） ---
+      // --- /convert 呼び出し ---
       let zip: JSZip;
       try {
         const fd = new FormData();
         fd.append("pdf", pdfFile);
         const res = await fetch("/convert?dpi=250", { method: "POST", body: fd });
         if (!res.ok) throw new Error(`convert failed: ${res.status}`);
-        const blob = await res.blob();
-        zip = await JSZip.loadAsync(blob);
-      } catch (err) {
-        console.error(err);
+        zip = await JSZip.loadAsync(await res.blob());
+      } catch (e) {
+        console.error(e);
         alert("PDF変換に失敗しました");
         return;
       }
 
-      // --- 貼り付けフェーズ（1枚ずつ安全に試行） ---
+      // --- PNG を番号順に取り出し ---
       const names = Object.keys(zip.files)
         .filter((n) => /^page-\d+\.png$/.test(n))
-        .sort(
-          (a, b) => parseInt(a.match(/\d+/)![0], 10) - parseInt(b.match(/\d+/)![0], 10),
-        );
+        .sort((a, b) => parseInt(a.match(/\d+/)![0], 10) - parseInt(b.match(/\d+/)![0], 10));
 
-      for (const name of names) {
+      if (!names.length) {
+        alert("ZIP内に page-*.png が見つかりません");
+        return;
+      }
+
+      // キャンバス中央座標を取得（おおよそ）
+      const appState = excalidrawAPI.getAppState();
+      const centerX = (appState.width ?? window.innerWidth) / 2 + (appState.scrollX ?? 0);
+      const centerY = (appState.height ?? window.innerHeight) / 2 + (appState.scrollY ?? 0);
+
+      // 現在の要素
+      let elements = excalidrawAPI.getSceneElements();
+
+      for (let i = 0; i < names.length; i++) {
         try {
-          const pngBlob = await zip.files[name].async("blob");
-          const filePng = new File([pngBlob], name, { type: "image/png" });
-          const dt = new DataTransfer();
-          dt.items.add(filePng);
+          const name = names[i];
+          const blob = await zip.files[name].async("blob");
 
-          // ★ Excalidraw の既存画像ドロップ処理に“だけ”渡す
-          const evt = new DragEvent("drop", { dataTransfer: dt, bubbles: true });
-          document.dispatchEvent(evt);
-          // 少し間を空けると安定する（重いPDFで有効）
-          await new Promise((r) => setTimeout(r, 10));
+          // 画像サイズを取得
+          // createImageBitmap は Web ワーカー不可だが、ここはUIスレッドなのでOK
+          const bmp = await createImageBitmap(blob);
+          const width = bmp.width;
+          const height = bmp.height;
+
+          // BinaryFiles に登録
+          const ab = new Uint8Array(await blob.arrayBuffer());
+          const fileId = excalidrawAPI.generateId
+            ? excalidrawAPI.generateId()
+            : Math.random().toString(36).slice(2) + Date.now();
+
+          await excalidrawAPI.addFiles?.(
+            new Map([
+              [
+                fileId,
+                {
+                  id: fileId,
+                  data: ab,
+                  mimeType: "image/png",
+                  created: Date.now(),
+                  lastRetrieved: Date.now(),
+                },
+              ],
+            ]),
+          );
+
+          // 画像エレメントを作成（必要プロパティを明示）
+          const imageElement = {
+            id: excalidrawAPI.generateId
+              ? excalidrawAPI.generateId()
+              : Math.random().toString(36).slice(2) + Date.now(),
+            type: "image",
+            x: centerX - width / 2,          // 中央に配置
+            y: centerY - height / 2 + i * (height + 40), // 縦方向に少しずつずらす
+            width,
+            height,
+            angle: 0,
+            fileId,
+            // 必須プロパティ（Excalidrawの要件に合わせて無難な既定値）
+            strokeColor: "transparent",
+            backgroundColor: "transparent",
+            fillStyle: "hachure",
+            strokeWidth: 1,
+            strokeStyle: "solid",
+            roundness: null,
+            roughness: 0,
+            opacity: 100,
+            groupIds: [],
+            frameId: null,
+            seed: Math.floor(Math.random() * 2 ** 31),
+            version: 1,
+            versionNonce: Math.floor(Math.random() * 2 ** 31),
+            isDeleted: false,
+            boundElements: null,
+            updated: Date.now(),
+            locked: false,
+          };
+
+          elements = [...elements, imageElement];
+          excalidrawAPI.updateScene({ elements });
+
+          // 少し待つと重いPDFでも安定
+          await new Promise((r) => setTimeout(r, 8));
         } catch (e) {
-          console.warn("Failed to insert page:", name, e);
-          // 続行（他ページは挿入する）
+          console.warn("画像挿入に失敗しました（続行します）:", e);
         }
       }
     };
 
-    // ★ document へ capture=true で登録（横取りが目的）
     document.addEventListener("dragover", onDragOver as any, { capture: true });
     document.addEventListener("drop", onDrop as any, { capture: true });
-
     return () => {
       document.removeEventListener("dragover", onDragOver as any, { capture: true });
       document.removeEventListener("drop", onDrop as any, { capture: true });
     };
-  }, []);
+  }, [excalidrawAPI]);
 }
