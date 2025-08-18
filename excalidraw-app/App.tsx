@@ -336,7 +336,7 @@ const initializeScene = async (opts: {
 };
 
 const ExcalidrawWrapper = () => {
-  usePdfDropToImages(); // PDFドロップ→/convert→PNG貼り付けを有効化
+  usePdfDropToImages(excalidrawAPI);
   const [errorMessage, setErrorMessage] = useState("");
   const isCollabDisabled = isRunningInIframe();
 
