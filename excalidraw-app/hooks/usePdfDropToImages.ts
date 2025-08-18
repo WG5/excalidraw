@@ -7,8 +7,17 @@ import type {
 } from "@excalidraw/excalidraw/types";
 import type { FileId } from "@excalidraw/element/types";
 
-/** string を FileId に“ブランド付け” */
+/** string → FileId（ブランド型） */
 const makeFileId = (s: string) => s as unknown as FileId;
+
+/** Blob → dataURL へ変換（BinaryFileData 用） */
+const blobToDataURL = (blob: Blob) =>
+  new Promise<string>((resolve, reject) => {
+    const fr = new FileReader();
+    fr.onload = () => resolve(fr.result as string);
+    fr.onerror = reject;
+    fr.readAsDataURL(blob);
+  });
 
 export function usePdfDropToImages(
   excalidrawAPI: ExcalidrawImperativeAPI | null,
@@ -33,7 +42,7 @@ export function usePdfDropToImages(
         .find((f) => f && f.type === "application/pdf");
       if (!pdf) return;
 
-      // PDF は標準処理に渡さず、ここで横取り
+      // 既存のPDF処理を止める
       ev.preventDefault();
       ev.stopPropagation();
       (ev as any).stopImmediatePropagation?.();
@@ -55,7 +64,7 @@ export function usePdfDropToImages(
         return;
       }
 
-      // ----- page-*.png を抽出してソート -----
+      // ----- page-*.png を抽出して並べ替え -----
       const names = Object.keys(zip.files)
         .filter((n) => /^page-\d+\.png$/.test(n))
         .sort(
@@ -68,7 +77,7 @@ export function usePdfDropToImages(
         return;
       }
 
-      // キャンバス中央付近に配置
+      // 配置基準：キャンバス中央
       const appState = excalidrawAPI.getAppState();
       const centerX =
         (appState.width ?? window.innerWidth) / 2 + (appState.scrollX ?? 0);
@@ -82,23 +91,20 @@ export function usePdfDropToImages(
           const name = names[i];
           const blob = await zip.files[name].async("blob");
 
-          // 画像サイズを取得
+          // 画像の自然サイズ取得
           const bmp = await createImageBitmap(blob);
           const width = bmp.width;
           const height = bmp.height;
 
-          // バイナリ化
-          const bytes = new Uint8Array(await blob.arrayBuffer());
-
-          // FileId を発行（ブランド型）
+          // BinaryFileData は dataURL を要求
+          const dataURL = await blobToDataURL(blob);
           const fileId = makeFileId(
             Math.random().toString(36).slice(2) + Date.now(),
           );
 
-          // BinaryFileData を登録（addFiles は配列）
           const fileData: BinaryFileData = {
             id: fileId,
-            data: bytes,
+            dataURL,                // ★ ここがポイント
             mimeType: "image/png",
             created: Date.now(),
             lastRetrieved: Date.now(),
@@ -110,11 +116,11 @@ export function usePdfDropToImages(
             id: Math.random().toString(36).slice(2) + Date.now(),
             type: "image",
             x: centerX - width / 2,
-            y: centerY - height / 2 + i * (height + 40), // 縦にずらして並べる
+            y: centerY - height / 2 + i * (height + 40), // 縦にずらす
             width,
             height,
             angle: 0,
-            fileId, // ← FileId ブランド済み
+            fileId, // FileId（ブランド済み）
             strokeColor: "transparent",
             backgroundColor: "transparent",
             fillStyle: "hachure",
@@ -137,7 +143,6 @@ export function usePdfDropToImages(
           elements = [...elements, imageElement];
           excalidrawAPI.updateScene({ elements });
 
-          // 連続追加を安定化
           await new Promise((r) => setTimeout(r, 8));
         } catch (e) {
           console.warn("画像挿入に失敗（続行）:", e);
