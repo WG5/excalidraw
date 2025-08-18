@@ -4,13 +4,16 @@ import JSZip from "jszip";
 import type {
   ExcalidrawImperativeAPI,
   BinaryFileData,
+  DataURL, // ★ 追加：ブランド型
 } from "@excalidraw/excalidraw/types";
 import type { FileId } from "@excalidraw/element/types";
 
 /** string → FileId（ブランド型） */
 const makeFileId = (s: string) => s as unknown as FileId;
+/** string → DataURL（ブランド型） */
+const makeDataURL = (s: string) => s as unknown as DataURL;
 
-/** Blob → dataURL へ変換（BinaryFileData 用） */
+/** Blob → dataURL(string) */
 const blobToDataURL = (blob: Blob) =>
   new Promise<string>((resolve, reject) => {
     const fr = new FileReader();
@@ -96,15 +99,15 @@ export function usePdfDropToImages(
           const width = bmp.width;
           const height = bmp.height;
 
-          // BinaryFileData は dataURL を要求
-          const dataURL = await blobToDataURL(blob);
+          // BinaryFileData は dataURL(ブランド型) を要求
+          const dataURL = makeDataURL(await blobToDataURL(blob));
           const fileId = makeFileId(
             Math.random().toString(36).slice(2) + Date.now(),
           );
 
           const fileData: BinaryFileData = {
             id: fileId,
-            dataURL,                // ★ ここがポイント
+            dataURL,               // ★ DataURL 型
             mimeType: "image/png",
             created: Date.now(),
             lastRetrieved: Date.now(),
