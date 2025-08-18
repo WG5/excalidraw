@@ -1,3 +1,4 @@
+import { usePdfDropToImages } from "./hooks/usePdfDropToImages";
 import {
   Excalidraw,
   LiveCollaborationTrigger,
@@ -335,6 +336,7 @@ const initializeScene = async (opts: {
 };
 
 const ExcalidrawWrapper = () => {
+  usePdfDropToImages(); // PDFドロップ→/convert→PNG貼り付けを有効化
   const [errorMessage, setErrorMessage] = useState("");
   const isCollabDisabled = isRunningInIframe();
 
