@@ -336,7 +336,6 @@ const initializeScene = async (opts: {
 };
 
 const ExcalidrawWrapper = () => {
-  usePdfDropToImages(excalidrawAPI);
   const [errorMessage, setErrorMessage] = useState("");
   const isCollabDisabled = isRunningInIframe();
 
@@ -367,6 +366,7 @@ const ExcalidrawWrapper = () => {
 
   const [excalidrawAPI, excalidrawRefCallback] =
     useCallbackRefState<ExcalidrawImperativeAPI>();
+  usePdfDropToImages(excalidrawAPI);
 
   const [, setShareDialogState] = useAtom(shareDialogStateAtom);
   const [collabAPI] = useAtom(collabAPIAtom);
