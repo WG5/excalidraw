@@ -144,6 +144,12 @@ polyfill();
 
 window.EXCALIDRAW_THROTTLE_RENDER = true;
 
+const emptyInitialScene: ExcalidrawInitialDataState = {
+  elements: [] as readonly NonDeletedExcalidrawElement[],
+  appState: { ...getDefaultAppState(), isLoading: false },
+  files: {} as BinaryFiles,
+};
+
 // ==== URL/docId utils ====
 const getDocIdFromUrl = (): string | null =>
   new URLSearchParams(window.location.search).get("doc")?.trim() || null;
@@ -227,29 +233,17 @@ const shareableLinkConfirmDialog = {
 const initializeScene = async (_opts: {
   collabAPI: CollabAPI | null;
   excalidrawAPI: ExcalidrawImperativeAPI;
-}) => {
-  // ① docパラメータが無ければ：新規（空キャンバス）
+}): Promise<
+  | { scene: ExcalidrawInitialDataState; isExternalScene: false }
+  | { scene: ExcalidrawInitialDataState; isExternalScene: true; id: string; key: string }
+> => {
+  // ?doc なし → 新規（空）
   if (!getDocIdFromUrl()) {
-    return {
-      scene: {
-        elements: [],
-        appState: { ...getDefaultAppState(), isLoading: false },
-        files: {},
-      },
-      isExternalScene: false,
-    } as const;
+    return { scene: emptyInitialScene, isExternalScene: false };
   }
 
-  // ② docパラメータがあるとき：localStorageを完全スキップして空シーンを返す
-  //    実データは useEffect の /scene/<doc> ロードで反映させる
-  return {
-    scene: {
-      elements: [],
-      appState: { ...getDefaultAppState(), isLoading: false },
-      files: {},
-    },
-    isExternalScene: false,
-  } as const;
+  // ?doc あり → いまは常にローカルは見ず空で返す（実データは後続の fetch で反映）
+  return { scene: emptyInitialScene, isExternalScene: false };
 };
 
   
