@@ -144,6 +144,36 @@ polyfill();
 
 window.EXCALIDRAW_THROTTLE_RENDER = true;
 
+// ==== URL/docId utils ====
+const getDocIdFromUrl = (): string | null =>
+  new URLSearchParams(window.location.search).get("doc")?.trim() || null;
+
+// ランダムで衝突しにくいIDを発行
+const genDocId = () => {
+  const r = crypto.getRandomValues(new Uint32Array(2));
+  return `doc-${Date.now().toString(36)}-${r[0].toString(36)}${r[1].toString(36)}`;
+};
+
+// URL を ?doc=... に差し替え（履歴は増やさない）
+const ensureDocId = (hint?: string): string => {
+  let doc = getDocIdFromUrl();
+  if (doc) return doc;
+  doc = hint ? hint : genDocId();
+  const url = new URL(location.href);
+  url.searchParams.set("doc", doc);
+  history.replaceState(null, "", url.toString());
+  return doc;
+};
+
+// 汎用デバウンス
+const debounce = <F extends (...args: any[]) => void>(fn: F, ms = 800) => {
+  let t: number | undefined;
+  return (...args: Parameters<F>) => {
+    if (t) clearTimeout(t);
+    t = window.setTimeout(() => fn(...args), ms);
+  };
+};
+
 declare global {
   interface BeforeInstallPromptEventChoiceResult {
     outcome: "accepted" | "dismissed";
