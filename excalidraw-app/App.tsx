@@ -174,6 +174,22 @@ const debounce = <F extends (...args: any[]) => void>(fn: F, ms = 800) => {
   };
 };
 
+const saveSceneDebounced = useRef(
+  debounce(async (payload: any, docId: string) => {
+    try {
+      await fetch(`/scene/${encodeURIComponent(docId)}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      // 任意: トースト表示
+      // excalidrawAPI?.setToast?.({ message: "保存しました", closable: true });
+    } catch (e) {
+      console.warn("save scene failed", e);
+    }
+  }, 1000)
+).current;
+
 declare global {
   interface BeforeInstallPromptEventChoiceResult {
     outcome: "accepted" | "dismissed";
@@ -411,6 +427,28 @@ const ExcalidrawWrapper = () => {
     // TODO maybe remove this in several months (shipped: 24-03-11)
     migrationAdapter: LibraryLocalStorageMigrationAdapter,
   });
+
+  useEffect(() => {
+    if (!excalidrawAPI) return;
+    const doc = getDocIdFromUrl();
+    if (!doc) return;
+  
+    (async () => {
+      try {
+        const res = await fetch(`/scene/${encodeURIComponent(doc)}`);
+        const j = await res.json();
+        if (j?.ok && j.exists && j.data) {
+          excalidrawAPI.updateScene({
+            ...j.data,
+            captureUpdate: CaptureUpdateAction.IMMEDIATELY,
+          });
+        }
+      } catch (e) {
+        console.warn("load scene failed", e);
+      }
+    })();
+  }, [excalidrawAPI]);
+
 
   const [, forceRefresh] = useState(false);
 
@@ -694,6 +732,35 @@ const ExcalidrawWrapper = () => {
           }
         }
       });
+      // 空→非空の検知
+      const hasContent =
+        (elements?.filter((el) => !el.isDeleted).length ?? 0) > 0 ||
+        (files && Object.keys(files).length > 0);
+      
+      // 何か書いた/貼った瞬間に doc を自動発行して URL を ?doc=... に変える
+      if (hasContent && !getDocIdFromUrl()) {
+        // もし名前を使いたければ hint に入れる：ensureDocId(excalidrawAPI?.getName?.())
+        ensureDocId();
+      }
+      
+      // PUT /scene/<doc> へデバウンス保存
+      const doc = getDocIdFromUrl();
+      if (doc) {
+        const payload = {
+          elements,
+          appState: {
+            exportBackground: appState.exportBackground,
+            viewBackgroundColor: appState.viewBackgroundColor,
+            theme: appState.theme,
+            zoom: appState.zoom,
+            scrollX: appState.scrollX,
+            scrollY: appState.scrollY,
+            gridSize: appState.gridSize,
+          },
+          files,
+        };
+        saveSceneDebounced(payload, doc);
+      }
     }
 
     // Render the debug scene if the debug canvas is available
