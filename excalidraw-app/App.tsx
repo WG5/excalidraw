@@ -224,7 +224,7 @@ const shareableLinkConfirmDialog = {
   color: "danger",
 } as const;
 
-const initializeScene = async (opts: {
+const initializeScene = async (_opts: {
   collabAPI: CollabAPI | null;
   excalidrawAPI: ExcalidrawImperativeAPI;
 }): Promise<{ scene: ExcalidrawInitialDataState | null } & { isExternalScene: false }> => {
@@ -237,6 +237,7 @@ const initializeScene = async (opts: {
     isExternalScene: false,
   } as const;
 };
+
   
   const searchParams = new URLSearchParams(window.location.search);
   const id = searchParams.get("id");
