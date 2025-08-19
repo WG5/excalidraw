@@ -580,75 +580,77 @@ const ExcalidrawWrapper = () => {
       TITLE_TIMEOUT,
     );
 
-    const syncData = debounce(() => {
-      if (!getDocIdFromUrl()) {
-        // ★ doc 無しの新規モードでは localStorage 同期を無効化
-        return;
-      }
-      if (isTestEnv()) return;
+    // 丸ごと無効化
+    const syncData = () => {};
+    // const syncData = debounce(() => {
+    //   if (!getDocIdFromUrl()) {
+    //     // ★ doc 無しの新規モードでは localStorage 同期を無効化
+    //     return;
+    //   }
+    //   if (isTestEnv()) return;
     
-      if (
-        !document.hidden &&
-        ((collabAPI && !collabAPI.isCollaborating()) || isCollabDisabled)
-      ) {
-        if (isTestEnv()) {
-          return;
-        }
-        if (
-          !document.hidden &&
-          ((collabAPI && !collabAPI.isCollaborating()) || isCollabDisabled)
-        ) {
-          // don't sync if local state is newer or identical to browser state
-          if (isBrowserStorageStateNewer(STORAGE_KEYS.VERSION_DATA_STATE)) {
-            const localDataState = importFromLocalStorage();
-            const username = importUsernameFromLocalStorage();
-            setLangCode(getPreferredLanguage());
-            excalidrawAPI.updateScene({
-              ...localDataState,
-              captureUpdate: CaptureUpdateAction.NEVER,
-            });
-            LibraryIndexedDBAdapter.load().then((data) => {
-              if (data) {
-                excalidrawAPI.updateLibrary({
-                  libraryItems: data.libraryItems,
-                });
-              }
-            });
-            collabAPI?.setUsername(username || "");
-          }
+    //   if (
+    //     !document.hidden &&
+    //     ((collabAPI && !collabAPI.isCollaborating()) || isCollabDisabled)
+    //   ) {
+    //     if (isTestEnv()) {
+    //       return;
+    //     }
+    //     if (
+    //       !document.hidden &&
+    //       ((collabAPI && !collabAPI.isCollaborating()) || isCollabDisabled)
+    //     ) {
+    //       // don't sync if local state is newer or identical to browser state
+    //       if (isBrowserStorageStateNewer(STORAGE_KEYS.VERSION_DATA_STATE)) {
+    //         const localDataState = importFromLocalStorage();
+    //         const username = importUsernameFromLocalStorage();
+    //         setLangCode(getPreferredLanguage());
+    //         excalidrawAPI.updateScene({
+    //           ...localDataState,
+    //           captureUpdate: CaptureUpdateAction.NEVER,
+    //         });
+    //         LibraryIndexedDBAdapter.load().then((data) => {
+    //           if (data) {
+    //             excalidrawAPI.updateLibrary({
+    //               libraryItems: data.libraryItems,
+    //             });
+    //           }
+    //         });
+    //         collabAPI?.setUsername(username || "");
+    //       }
   
-          if (isBrowserStorageStateNewer(STORAGE_KEYS.VERSION_FILES)) {
-            const elements = excalidrawAPI.getSceneElementsIncludingDeleted();
-            const currFiles = excalidrawAPI.getFiles();
-            const fileIds =
-              elements?.reduce((acc, element) => {
-                if (
-                  isInitializedImageElement(element) &&
-                  // only load and update images that aren't already loaded
-                  !currFiles[element.fileId]
-                ) {
-                  return acc.concat(element.fileId);
-                }
-                return acc;
-              }, [] as FileId[]) || [];
-            if (fileIds.length) {
-              LocalData.fileStorage
-                .getFiles(fileIds)
-                .then(({ loadedFiles, erroredFiles }) => {
-                  if (loadedFiles.length) {
-                    excalidrawAPI.addFiles(loadedFiles);
-                  }
-                  updateStaleImageStatuses({
-                    excalidrawAPI,
-                    erroredFiles,
-                    elements: excalidrawAPI.getSceneElementsIncludingDeleted(),
-                  });
-                });
-            }
-          }
-        }
-      }
-    }, SYNC_BROWSER_TABS_TIMEOUT);
+    //       if (isBrowserStorageStateNewer(STORAGE_KEYS.VERSION_FILES)) {
+    //         const elements = excalidrawAPI.getSceneElementsIncludingDeleted();
+    //         const currFiles = excalidrawAPI.getFiles();
+    //         const fileIds =
+    //           elements?.reduce((acc, element) => {
+    //             if (
+    //               isInitializedImageElement(element) &&
+    //               // only load and update images that aren't already loaded
+    //               !currFiles[element.fileId]
+    //             ) {
+    //               return acc.concat(element.fileId);
+    //             }
+    //             return acc;
+    //           }, [] as FileId[]) || [];
+    //         if (fileIds.length) {
+    //           LocalData.fileStorage
+    //             .getFiles(fileIds)
+    //             .then(({ loadedFiles, erroredFiles }) => {
+    //               if (loadedFiles.length) {
+    //                 excalidrawAPI.addFiles(loadedFiles);
+    //               }
+    //               updateStaleImageStatuses({
+    //                 excalidrawAPI,
+    //                 erroredFiles,
+    //                 elements: excalidrawAPI.getSceneElementsIncludingDeleted(),
+    //               });
+    //             });
+    //         }
+    //       }
+    //     }
+    //   }
+    // }, SYNC_BROWSER_TABS_TIMEOUT);
 
     const onUnload = () => {
       LocalData.flushSave();
