@@ -287,7 +287,7 @@ const initializeScene = async (_opts: {
         return new Promise((resolve, reject) => {
           window.addEventListener(
             "focus",
-            () => initializeScene(opts).then(resolve).catch(reject),
+            () => initializeScene(_opts).then(resolve).catch(reject),
             {
               once: true,
             },
@@ -323,10 +323,10 @@ const initializeScene = async (_opts: {
     }
   }
 
-  if (roomLinkData && opts.collabAPI) {
-    const { excalidrawAPI } = opts;
+  if (roomLinkData && _opts.collabAPI) {
+    const { excalidrawAPI } = _opts;
 
-    const scene = await opts.collabAPI.startCollaboration(roomLinkData);
+    const scene = await _opts.collabAPI.startCollaboration(roomLinkData);
 
     return {
       // when collaborating, the state may have already been updated at this
