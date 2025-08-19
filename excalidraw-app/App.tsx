@@ -165,31 +165,6 @@ const ensureDocId = (hint?: string): string => {
   return doc;
 };
 
-// 汎用デバウンス
-const debounce = <F extends (...args: any[]) => void>(fn: F, ms = 800) => {
-  let t: number | undefined;
-  return (...args: Parameters<F>) => {
-    if (t) clearTimeout(t);
-    t = window.setTimeout(() => fn(...args), ms);
-  };
-};
-
-const saveSceneDebounced = useRef(
-  debounce(async (payload: any, docId: string) => {
-    try {
-      await fetch(`/scene/${encodeURIComponent(docId)}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
-      // 任意: トースト表示
-      // excalidrawAPI?.setToast?.({ message: "保存しました", closable: true });
-    } catch (e) {
-      console.warn("save scene failed", e);
-    }
-  }, 1000)
-).current;
-
 declare global {
   interface BeforeInstallPromptEventChoiceResult {
     outcome: "accepted" | "dismissed";
@@ -412,6 +387,23 @@ const ExcalidrawWrapper = () => {
 
   const [excalidrawAPI, excalidrawRefCallback] =
     useCallbackRefState<ExcalidrawImperativeAPI>();
+  
+  const saveSceneDebounced = useRef(
+    debounce(async (payload: any, docId: string) => {
+      try {
+        await fetch(`/scene/${encodeURIComponent(docId)}`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        });
+        // 任意: トースト表示
+        // excalidrawAPI?.setToast?.({ message: "保存しました", closable: true });
+      } catch (e) {
+        console.warn("save scene failed", e);
+      }
+    }, 1000)
+  ).current;
+  
   usePdfDropToImages(excalidrawAPI);
 
   const [, setShareDialogState] = useAtom(shareDialogStateAtom);
@@ -709,9 +701,9 @@ const ExcalidrawWrapper = () => {
         if (excalidrawAPI) {
           let didChange = false;
 
-          const elements = excalidrawAPI
-            .getSceneElementsIncludingDeleted()
-            .map((element) => {
+          const updatedElements = excalidrawAPI
+              .getSceneElementsIncludingDeleted()
+              .map((element) => {
               if (
                 LocalData.fileStorage.shouldUpdateImageElementStatus(element)
               ) {
@@ -726,7 +718,7 @@ const ExcalidrawWrapper = () => {
 
           if (didChange) {
             excalidrawAPI.updateScene({
-              elements,
+              elements: updatedElements,
               captureUpdate: CaptureUpdateAction.NEVER,
             });
           }
