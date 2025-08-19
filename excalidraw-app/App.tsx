@@ -227,25 +227,16 @@ const shareableLinkConfirmDialog = {
 const initializeScene = async (opts: {
   collabAPI: CollabAPI | null;
   excalidrawAPI: ExcalidrawImperativeAPI;
-}): Promise<
-  { scene: ExcalidrawInitialDataState | null } & (
-    | { isExternalScene: true; id: string; key: string }
-    | { isExternalScene: false; id?: null; key?: null }
-  )
-> => {
-  if (!getDocIdFromUrl()) {
-    return {
-      scene: {
-        elements: [],
-        appState: {
-          ...getDefaultAppState(),
-          isLoading: false,
-        },
-        files: {},
-      },
-      isExternalScene: false,
-    } as const;
-  }
+}): Promise<{ scene: ExcalidrawInitialDataState | null } & { isExternalScene: false }> => {
+  return {
+    scene: {
+      elements: [],
+      appState: { ...getDefaultAppState(), isLoading: false },
+      files: {},
+    },
+    isExternalScene: false,
+  } as const;
+};
   
   const searchParams = new URLSearchParams(window.location.search);
   const id = searchParams.get("id");
